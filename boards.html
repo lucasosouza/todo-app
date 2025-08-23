@@ -117,6 +117,32 @@
             background: rgba(255, 255, 255, 0.3);
         }
 
+        .sync-button {
+            min-width: 100px;
+        }
+
+        .sync-info {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.85rem;
+            padding: 0 10px;
+            display: flex;
+            align-items: center;
+        }
+
+        .hash-button {
+            min-width: 120px;
+        }
+
+        .sync-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #currentHashDisplay {
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
         .hidden {
             display: none;
         }
@@ -499,6 +525,19 @@
                 <span>👥</span>
                 Your boards
             </h2>
+            <div class="header-actions">
+                <button class="action-button hash-button" onclick="openHashModal()" title="Manage Sync ID">
+                    <span>🔑</span>
+                    <span id="hashButtonText">Setup Sync</span>
+                </button>
+                <button class="action-button sync-button" onclick="handleSync()" title="Sync with cloud" id="syncButton" disabled>
+                    <span class="sync-icon">☁️</span>
+                    <span>Sync</span>
+                </button>
+                <div class="sync-info" id="syncInfo" style="display: none;">
+                    <span class="sync-status-text">ID: <span id="currentHashDisplay">None</span> | Last: <span id="lastSyncTime">Never</span></span>
+                </div>
+            </div>
         </div>
         <input type="file" id="importFile" class="hidden" accept=".json" onchange="importBoards(event)">
 
@@ -575,6 +614,20 @@
         </div>
     </div>
 
+    <!-- Hash Management Modal -->
+    <div id="hashModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title">Sync ID Management</span>
+                <span class="close" onclick="closeHashModal()">&times;</span>
+            </div>
+            <div id="hashModalContent">
+                <!-- Content will be dynamically generated -->
+            </div>
+        </div>
+    </div>
+
+    <script src="sync.js"></script>
     <script>
         // Global variables
         let boards = JSON.parse(localStorage.getItem('kanbanBoards')) || [];
@@ -1039,9 +1092,214 @@
             }
         });
 
+        // Hash Management Modal
+        function openHashModal() {
+            const modal = document.getElementById('hashModal');
+            const content = document.getElementById('hashModalContent');
+            
+            if (syncManager.hasHash()) {
+                // User has a hash
+                content.innerHTML = `
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h3 style="color: #10b981; margin-bottom: 10px;">Active Sync ID</h3>
+                        <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                            <span style="font-size: 1.5rem; font-weight: bold; color: #333; letter-spacing: 2px;">
+                                ${syncManager.getHash().toUpperCase()}
+                            </span>
+                            <button onclick="copyHashToClipboard()" class="btn btn-secondary" style="padding: 5px 10px;">
+                                📋 Copy
+                            </button>
+                        </div>
+                        <p style="color: #666; margin-top: 10px; font-size: 0.9rem;">
+                            Use this ID on other devices to sync your boards
+                        </p>
+                    </div>
+                    
+                    <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
+                    
+                    <div class="form-group">
+                        <label><strong>Switch to Different Sync ID</strong></label>
+                        <p style="color: #666; font-size: 0.9rem; margin-bottom: 10px;">
+                            Warning: This will replace all your local data
+                        </p>
+                        <input type="text" id="switchHashInput" placeholder="Enter existing Sync ID" 
+                               style="text-transform: uppercase;" maxlength="20">
+                    </div>
+                    
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" onclick="closeHashModal()">Close</button>
+                        <button class="btn btn-danger" onclick="createNewHashWithWarning()">
+                            Create New ID
+                        </button>
+                        <button class="btn btn-primary" onclick="switchHash()">
+                            Switch ID
+                        </button>
+                    </div>
+                `;
+            } else {
+                // User has no hash
+                content.innerHTML = `
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h3 style="color: #666;">No Sync ID Set</h3>
+                        <p style="color: #666; margin-top: 10px;">
+                            Create a new Sync ID or enter an existing one to enable cloud sync
+                        </p>
+                    </div>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 20px;">
+                        <div style="background: #f0f9ff; padding: 20px; border-radius: 8px; text-align: center;">
+                            <h4 style="color: #0369a1; margin-bottom: 10px;">New User?</h4>
+                            <p style="color: #666; margin-bottom: 15px; font-size: 0.9rem;">
+                                Create a new Sync ID to start syncing your boards
+                            </p>
+                            <button class="btn btn-primary" onclick="createNewHash()" style="width: 100%;">
+                                🆕 Create New Sync ID
+                            </button>
+                        </div>
+                        
+                        <div style="background: #fef3c7; padding: 20px; border-radius: 8px;">
+                            <h4 style="color: #92400e; margin-bottom: 10px;">Have an existing ID?</h4>
+                            <p style="color: #666; margin-bottom: 10px; font-size: 0.9rem;">
+                                Enter your Sync ID to download your boards from the cloud
+                            </p>
+                            <input type="text" id="activateHashInput" placeholder="Enter your Sync ID" 
+                                   style="text-transform: uppercase; margin-bottom: 10px;" maxlength="20">
+                            <button class="btn btn-primary" onclick="activateHash()" style="width: 100%;">
+                                🔄 Activate Existing ID
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-actions" style="margin-top: 20px;">
+                        <button class="btn btn-secondary" onclick="closeHashModal()" style="width: 100%;">Cancel</button>
+                    </div>
+                `;
+            }
+            
+            modal.style.display = 'block';
+        }
+
+        function closeHashModal() {
+            document.getElementById('hashModal').style.display = 'none';
+        }
+
+        function copyHashToClipboard() {
+            const hash = syncManager.getHash();
+            navigator.clipboard.writeText(hash).then(() => {
+                syncManager.showSyncStatus('Sync ID copied to clipboard', 'success');
+            });
+        }
+
+        async function createNewHash() {
+            const hash = await syncManager.createNewHash();
+            if (hash) {
+                closeHashModal();
+                updateSyncUI();
+            }
+        }
+
+        async function createNewHashWithWarning() {
+            if (confirm('Creating a new Sync ID will start a fresh sync workspace.\n\nYour current data will remain under the existing ID.\n\nContinue?')) {
+                const hash = await syncManager.createNewHash();
+                if (hash) {
+                    closeHashModal();
+                    updateSyncUI();
+                }
+            }
+        }
+
+        async function activateHash() {
+            const input = document.getElementById('activateHashInput');
+            const hash = input.value.trim();
+            
+            if (!hash) {
+                syncManager.showSyncStatus('Please enter a Sync ID', 'warning');
+                return;
+            }
+            
+            const success = await syncManager.activateExistingHash(hash);
+            if (success) {
+                closeHashModal();
+                updateSyncUI();
+            }
+        }
+
+        async function switchHash() {
+            const input = document.getElementById('switchHashInput');
+            const hash = input.value.trim();
+            
+            if (!hash) {
+                syncManager.showSyncStatus('Please enter a Sync ID', 'warning');
+                return;
+            }
+            
+            const success = await syncManager.activateExistingHash(hash);
+            if (success) {
+                closeHashModal();
+                updateSyncUI();
+            }
+        }
+
+        // Sync functionality
+        function handleSync() {
+            if (!syncManager.hasHash()) {
+                openHashModal();
+                return;
+            }
+            syncManager.syncData(true);
+        }
+
+        // Update sync UI based on hash status
+        function updateSyncUI() {
+            const syncButton = document.getElementById('syncButton');
+            const hashButtonText = document.getElementById('hashButtonText');
+            const syncInfo = document.getElementById('syncInfo');
+            const currentHashDisplay = document.getElementById('currentHashDisplay');
+            const lastSyncTime = document.getElementById('lastSyncTime');
+            
+            if (syncManager.hasHash()) {
+                syncButton.disabled = false;
+                hashButtonText.textContent = 'Sync ID';
+                syncInfo.style.display = 'flex';
+                currentHashDisplay.textContent = syncManager.getHash().toUpperCase();
+                
+                if (syncManager.lastSyncTimestamp) {
+                    lastSyncTime.textContent = syncManager.formatLastSyncTime();
+                } else {
+                    lastSyncTime.textContent = 'Never';
+                }
+            } else {
+                syncButton.disabled = true;
+                hashButtonText.textContent = 'Setup Sync';
+                syncInfo.style.display = 'none';
+            }
+        }
+
+        // Update sync info display
+        function updateSyncInfo() {
+            updateSyncUI();
+        }
+
         // Initialize the app
         initializeWorkspace();
         renderBoards();
+        updateSyncUI();
+        
+        // Update sync info every minute
+        setInterval(updateSyncInfo, 60000);
+        
+        // Auto-sync on page load if hash exists (without UI)
+        if (syncManager.hasHash()) {
+            syncManager.syncData(false);
+        }
+
+        // Close modal when clicking outside
+        window.addEventListener('click', function(e) {
+            const hashModal = document.getElementById('hashModal');
+            if (e.target === hashModal) {
+                closeHashModal();
+            }
+        });
     </script>
 </body>
 </html>

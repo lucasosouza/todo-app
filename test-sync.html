@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sync Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .log {
+            background: #f4f4f4;
+            padding: 10px;
+            margin-top: 20px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <h1>Kanban Todo App - Sync Test</h1>
+    
+    <div class="status info">
+        <strong>Instructions:</strong><br>
+        1. Open your Kanban app in another browser tab<br>
+        2. Create some boards and cards<br>
+        3. Click "Test Sync" below to sync data to the cloud<br>
+        4. Clear local storage and sync again to restore from cloud
+    </div>
+
+    <div>
+        <button onclick="testSync()">Test Sync</button>
+        <button onclick="checkServer()">Check Server Status</button>
+        <button onclick="viewLocalData()">View Local Data</button>
+        <button onclick="viewCloudData()">View Cloud Data</button>
+        <button onclick="clearLocalData()">Clear Local Data</button>
+    </div>
+
+    <div id="result" class="log">Test results will appear here...</div>
+
+    <script src="sync.js"></script>
+    <script>
+        const resultDiv = document.getElementById('result');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            resultDiv.innerHTML += `[${timestamp}] ${message}\n`;
+            resultDiv.scrollTop = resultDiv.scrollHeight;
+        }
+
+        async function testSync() {
+            log('🔄 Starting sync test...');
+            
+            // Check server
+            const isOnline = await syncManager.checkServerConnection();
+            log(`Server status: ${isOnline ? '✅ Online' : '❌ Offline'}`);
+            
+            if (!isOnline) {
+                log('❌ Cannot sync - server is offline', 'error');
+                return;
+            }
+            
+            // Perform sync
+            const success = await syncManager.syncData(true);
+            if (success) {
+                log('✅ Sync completed successfully!', 'success');
+            } else {
+                log('❌ Sync failed', 'error');
+            }
+        }
+
+        async function checkServer() {
+            log('Checking server status...');
+            const isOnline = await syncManager.checkServerConnection();
+            if (isOnline) {
+                log('✅ Server is online and ready', 'success');
+            } else {
+                log('❌ Server is offline or unreachable', 'error');
+                log('Make sure the server is running: npm start');
+            }
+        }
+
+        function viewLocalData() {
+            log('📱 Local Storage Data:');
+            const data = syncManager.getLocalData();
+            log(JSON.stringify(data, null, 2));
+        }
+
+        async function viewCloudData() {
+            log('☁️ Cloud Data:');
+            const data = await syncManager.getCloudData();
+            if (data) {
+                log(JSON.stringify(data, null, 2));
+            } else {
+                log('No cloud data available or server is offline');
+            }
+        }
+
+        function clearLocalData() {
+            if (confirm('Are you sure you want to clear all local data?')) {
+                localStorage.clear();
+                log('🗑️ Local storage cleared');
+                log('You can now sync to restore from cloud');
+            }
+        }
+
+        // Initial check
+        window.addEventListener('load', () => {
+            log('Test page loaded');
+            log('Checking server connection...');
+            checkServer();
+        });
+    </script>
+</body>
+</html>

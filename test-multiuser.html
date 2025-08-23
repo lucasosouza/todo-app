@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-User Hash Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        .user-section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        button {
+            padding: 10px 15px;
+            margin: 5px;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background: #667eea;
+            color: white;
+        }
+        button:hover {
+            background: #5a6fd8;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .hash-display {
+            background: #f0f9ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            font-family: monospace;
+            font-size: 18px;
+            text-align: center;
+            letter-spacing: 2px;
+        }
+        .log {
+            background: #f4f4f4;
+            padding: 10px;
+            margin-top: 15px;
+            border-radius: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        .data-preview {
+            background: #fffbeb;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-size: 12px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+        .status {
+            padding: 5px 10px;
+            border-radius: 4px;
+            margin: 5px 0;
+            font-size: 12px;
+        }
+        .status.online { background: #d4edda; color: #155724; }
+        .status.offline { background: #f8d7da; color: #721c24; }
+        .status.synced { background: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <h1>Multi-User Hash Sync Testing</h1>
+    
+    <div class="container">
+        <!-- User 1 Section -->
+        <div class="user-section">
+            <h2>👤 User 1 (Original)</h2>
+            
+            <div class="status" id="status1">Status: Ready</div>
+            
+            <div class="hash-display" id="hash1">No Hash Set</div>
+            
+            <div>
+                <button onclick="createHash1()">Create New Hash</button>
+                <button onclick="addData1()">Add Sample Data</button>
+                <button onclick="sync1()" id="sync1Btn" disabled>Sync</button>
+            </div>
+            
+            <div class="data-preview" id="data1">
+                Local Data: Empty
+            </div>
+            
+            <div class="log" id="log1">Log will appear here...</div>
+        </div>
+
+        <!-- User 2 Section -->
+        <div class="user-section">
+            <h2>👥 User 2 (Another Device)</h2>
+            
+            <div class="status" id="status2">Status: Ready</div>
+            
+            <div class="hash-display" id="hash2">No Hash Set</div>
+            
+            <div>
+                <input type="text" id="hashInput2" placeholder="Enter Hash from User 1">
+                <button onclick="activateHash2()">Activate Hash</button>
+                <button onclick="sync2()" id="sync2Btn" disabled>Sync</button>
+                <button onclick="clearData2()">Clear Local</button>
+            </div>
+            
+            <div class="data-preview" id="data2">
+                Local Data: Empty
+            </div>
+            
+            <div class="log" id="log2">Log will appear here...</div>
+        </div>
+    </div>
+
+    <script src="sync.js"></script>
+    <script>
+        // Create separate sync managers for each user (simulating different browsers/devices)
+        const user1 = new SyncManager();
+        const user2 = new SyncManager();
+        
+        // Override localStorage for user2 to simulate separate storage
+        const user2Storage = {};
+        
+        // Helper functions
+        function log1(msg) {
+            const logDiv = document.getElementById('log1');
+            logDiv.textContent = new Date().toLocaleTimeString() + ' - ' + msg + '\n' + logDiv.textContent;
+        }
+        
+        function log2(msg) {
+            const logDiv = document.getElementById('log2');
+            logDiv.textContent = new Date().toLocaleTimeString() + ' - ' + msg + '\n' + logDiv.textContent;
+        }
+        
+        function updateDisplay1() {
+            const hashDiv = document.getElementById('hash1');
+            const syncBtn = document.getElementById('sync1Btn');
+            const dataDiv = document.getElementById('data1');
+            
+            if (user1.hasHash()) {
+                hashDiv.textContent = 'Hash: ' + user1.getHash().toUpperCase();
+                syncBtn.disabled = false;
+            } else {
+                hashDiv.textContent = 'No Hash Set';
+                syncBtn.disabled = true;
+            }
+            
+            // Show local data
+            const boards = JSON.parse(localStorage.getItem('kanbanBoards') || '[]');
+            dataDiv.textContent = `Local Data:\nBoards: ${boards.length}\n` + 
+                                 boards.map(b => '- ' + b.title).join('\n');
+        }
+        
+        function updateDisplay2() {
+            const hashDiv = document.getElementById('hash2');
+            const syncBtn = document.getElementById('sync2Btn');
+            const dataDiv = document.getElementById('data2');
+            
+            if (user2.hasHash()) {
+                hashDiv.textContent = 'Hash: ' + user2.getHash().toUpperCase();
+                syncBtn.disabled = false;
+            } else {
+                hashDiv.textContent = 'No Hash Set';
+                syncBtn.disabled = true;
+            }
+            
+            // Show local data (from user2Storage)
+            const boards = JSON.parse(user2Storage['kanbanBoards'] || '[]');
+            dataDiv.textContent = `Local Data:\nBoards: ${boards.length}\n` + 
+                                 boards.map(b => '- ' + b.title).join('\n');
+        }
+        
+        // User 1 Functions
+        async function createHash1() {
+            log1('Creating new hash...');
+            const hash = await user1.createNewHash();
+            if (hash) {
+                log1('Created hash: ' + hash.toUpperCase());
+                document.getElementById('hashInput2').value = hash;
+                updateDisplay1();
+            } else {
+                log1('Failed to create hash');
+            }
+        }
+        
+        function addData1() {
+            log1('Adding sample data...');
+            
+            // Add sample boards
+            const boards = [
+                { id: 'board1', title: 'Project Alpha', description: 'Main project board', createdAt: new Date().toISOString() },
+                { id: 'board2', title: 'Ideas', description: 'Brainstorming board', createdAt: new Date().toISOString() }
+            ];
+            localStorage.setItem('kanbanBoards', JSON.stringify(boards));
+            
+            // Add sample cards
+            const cards1 = [
+                { id: 'card1', title: 'Task 1', description: 'First task', column: 'todo' },
+                { id: 'card2', title: 'Task 2', description: 'Second task', column: 'doing' }
+            ];
+            localStorage.setItem('kanbanCards_board1', JSON.stringify(cards1));
+            
+            log1('Added 2 boards with cards');
+            updateDisplay1();
+        }
+        
+        async function sync1() {
+            log1('Syncing...');
+            const success = await user1.syncData(false);
+            if (success) {
+                log1('Sync successful');
+            } else {
+                log1('Sync failed');
+            }
+            updateDisplay1();
+        }
+        
+        // User 2 Functions
+        async function activateHash2() {
+            const hash = document.getElementById('hashInput2').value.trim();
+            if (!hash) {
+                log2('Please enter a hash');
+                return;
+            }
+            
+            log2('Activating hash: ' + hash.toUpperCase());
+            
+            // Temporarily override localStorage for user2
+            const originalGetItem = localStorage.getItem;
+            const originalSetItem = localStorage.setItem;
+            const originalRemoveItem = localStorage.removeItem;
+            
+            localStorage.getItem = (key) => {
+                if (key === 'userSyncHash') return hash;
+                return user2Storage[key] || null;
+            };
+            localStorage.setItem = (key, value) => {
+                user2Storage[key] = value;
+            };
+            localStorage.removeItem = (key) => {
+                delete user2Storage[key];
+            };
+            
+            const success = await user2.activateExistingHash(hash, true);
+            
+            // Restore original localStorage
+            localStorage.getItem = originalGetItem;
+            localStorage.setItem = originalSetItem;
+            localStorage.removeItem = originalRemoveItem;
+            
+            if (success) {
+                log2('Hash activated successfully');
+                user2Storage['userSyncHash'] = hash;
+                updateDisplay2();
+            } else {
+                log2('Failed to activate hash');
+            }
+        }
+        
+        async function sync2() {
+            log2('Syncing...');
+            
+            // Temporarily override localStorage for user2
+            const originalGetItem = localStorage.getItem;
+            const originalSetItem = localStorage.setItem;
+            
+            localStorage.getItem = (key) => user2Storage[key] || null;
+            localStorage.setItem = (key, value) => {
+                user2Storage[key] = value;
+            };
+            
+            const success = await user2.syncData(false);
+            
+            // Restore original localStorage
+            localStorage.getItem = originalGetItem;
+            localStorage.setItem = originalSetItem;
+            
+            if (success) {
+                log2('Sync successful - data downloaded');
+            } else {
+                log2('Sync failed');
+            }
+            updateDisplay2();
+        }
+        
+        function clearData2() {
+            log2('Clearing local data...');
+            user2Storage['kanbanBoards'] = '[]';
+            delete user2Storage['kanbanCards_board1'];
+            delete user2Storage['kanbanCards_board2'];
+            log2('Local data cleared');
+            updateDisplay2();
+        }
+        
+        // Initialize displays
+        updateDisplay1();
+        updateDisplay2();
+        
+        // Check server status
+        async function checkServer() {
+            const online = await user1.checkServerConnection();
+            document.getElementById('status1').textContent = 'Server: ' + (online ? 'Online' : 'Offline');
+            document.getElementById('status1').className = 'status ' + (online ? 'online' : 'offline');
+            document.getElementById('status2').textContent = 'Server: ' + (online ? 'Online' : 'Offline');
+            document.getElementById('status2').className = 'status ' + (online ? 'online' : 'offline');
+            
+            if (!online) {
+                log1('Server is offline - start with: npm start');
+                log2('Server is offline - start with: npm start');
+            }
+        }
+        
+        checkServer();
+    </script>
+</body>
+</html>
